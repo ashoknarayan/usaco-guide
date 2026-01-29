@@ -1,0 +1,143 @@
+---
+id: cses-1639-minimal-grid-path
+source: CSES
+title: Minimal Grid Path
+author: Ashok Narayan
+---
+
+## Explanation
+
+The problem asks us to find the lexicographically smallest string formed by a path from $(0, 0)$ to $(n-1, n-1)$ in an $n \times n$ grid, moving only down and right.
+
+### Naive DP Approach
+
+Since this is a grid path problem, a natural first thought is Dynamic Programming. Let $dp[i][j]$ be the lexicographically minimal string from $(0, 0)$ to $(i, j)$.
+The transition would be:
+$$
+dp[i][j] = \min(dp[i-1][j], dp[i][j-1]) + \text{grid}[i][j]
+$$
+
+However, let's analyze the constraints. $n \le 3000$.
+The length of the string at $(n-1, n-1)$ is $2n-1$.
+In the transition, comparing two strings of length $O(n)$ takes $O(n)$ time.
+Since there are $n^2$ states, the total time complexity would be $O(n^3)$.
+With $n=3000$, $n^3 \approx 2.7 \times 10^{10}$, which will definitely exceed the 1.0s time limit. We need a more efficient approach, ideally close to $O(n^2)$.
+
+### Greedy BFS on Diagonals
+
+Instead of carrying the full string history in our state, we can construct the answer character by character.
+Notice that any path from $(0, 0)$ to a cell $(r, c)$ has a fixed length of $r+c+1$. This means all cells on a diagonal (where $r+c$ is constant) correspond to the same index in the resulting string.
+
+We can proceed in $2n-2$ steps (diagonals). We maintain a set of "active" cells, $S_k$, which are the reachable cells at step $k$ that form the lexicographically minimal prefix of length $k$.
+
+1.  **Initialize:** $S_0 = \{(0,0)\}$. The result string starts with `grid[0][0]`.
+2.  **Iterate:** For each step $k$ from $0$ to $2n-3$:
+    * Find all valid neighbors (Right and Down) of all cells in $S_k$.
+    * Determine the minimum character $c_{min}$ appearing among these neighbors.
+    * Append $c_{min}$ to the result string.
+    * The new set $S_{k+1}$ will contain *only* the neighbors that have the character $c_{min}$.
+
+By keeping only the neighbors with the minimal character, we effectively prune all paths that are already lexicographically larger than the optimal path.
+
+### Proof of Correctness
+
+Let the string constructed by our algorithm be $A$ and the true lexicographically minimal string be $O$. We want to show $A = O$.
+
+We construct $A$ character by character. Let's prove by induction that at step $k$, the prefix $A[0 \dots k]$ is equal to the prefix $O[0 \dots k]$, and our set $S_k$ contains all cells $(r, c)$ reachable by a path generating $O[0 \dots k]$.
+
+**Base Case:** At $k=0$, $A[0]$ is the character at $(0,0)$, which is fixed. $S_0 = \{(0,0)\}$ contains the only starting point. This holds.
+
+**Inductive Step:** Suppose it holds for step $k$. We look at all neighbors of cells in $S_k$. Let the minimum character among these be $c_{min}$.
+* Any path generating $O[0 \dots k+1]$ must pass through some cell in $S_k$ (by hypothesis) and move to a neighbor.
+* The character at that neighbor must be $\ge c_{min}$ (by definition of min).
+* Therefore, $O[k+1] \ge c_{min}$.
+* Since our algorithm picks $A[k+1] = c_{min}$, we have $A[k+1] \le O[k+1]$.
+* Since $O$ is minimal, $O[k+1] \le A[k+1]$.
+* Thus, $A[k+1] = O[k+1]$.
+
+Our algorithm then updates $S_{k+1}$ to include all neighbors with value $c_{min}$. This ensures we capture every possible path that matches the optimal prefix, preserving the invariant.
+
+### Time Complexity
+
+We iterate through $2n$ diagonals. In the worst case (e.g., a grid of all 'A's), a diagonal can have up to $n$ cells.
+However, we visit each cell at most once because we can use a `visited` array to prevent processing a cell multiple times from different parents (e.g., reaching $(1,1)$ from $(0,1)$ and $(1,0)$).
+* Total States (Cells): $n^2$
+* Transitions per state: 2
+* **Time Complexity:** $O(n^2)$
+* **Space Complexity:** $O(n^2)$ (for the grid and visited array)
+
+This fits comfortably within the time limit for $n=3000$ ($9 \times 10^6$ operations).
+
+## Implementation
+
+<LanguageSection>
+<CPPSection>
+
+```cpp
+#include <bits/stdc++.h>
+
+using namespace std;
+
+#define pii pair<int, int>
+
+int n;
+vector<string> grid;
+
+int main() {
+	ios::sync_with_stdio(0);
+	cin.tie(0);
+
+	cin >> n;
+	grid.resize(n);
+	for (int i = 0; i < n; ++i) cin >> grid[i];
+
+	// Stores the list of valid cells for the current step
+	vector<pii> curr = {{0, 0}};
+
+	string res;
+	res += grid[0][0];
+
+	// Visited array to prevents duplicate processing of the same cell
+	vector<vector<bool>> vis(n, vector<bool>(n, false));
+	vis[0][0] = true;
+
+	// The path length is always 2*n - 1, so we take (2*n - 2) steps after the start
+	for (int step = 1; step <= 2 * n - 2; ++step) {
+		char best = 'z' + 1; // Initialize with a value larger than 'z'
+		vector<pii> next;
+
+		// First pass: Find the smallest character among all reachable neighbors
+		for (auto [x, y] : curr) {
+			// Check Down
+			if (x + 1 < n && !vis[x + 1][y]) {
+				best = min(best, grid[x + 1][y]);
+			}
+			// Check Right
+			if (y + 1 < n && !vis[x][y + 1]) {
+				best = min(best, grid[x][y + 1]);
+			}
+		}
+
+		// Second pass: Add all neighbors that match the 'best' character to the next queue
+		for (auto [x, y] : curr) {
+			// Try Down
+			if (x + 1 < n && grid[x + 1][y] == best && !vis[x + 1][y]) {
+				next.push_back({x + 1, y});
+				vis[x + 1][y] = true;
+			}
+			// Try Right
+			if (y + 1 < n && grid[x][y + 1] == best && !vis[x][y + 1]) {
+				next.push_back({x, y + 1});
+				vis[x][y + 1] = true;
+			}
+		}
+
+		res += best;
+		curr = move(next); // Move to reuse memory efficiently
+	}
+
+	cout << res << '\n';
+}
+```
+<\CPPSection>
+<\LanguageSection>
