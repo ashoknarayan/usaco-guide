@@ -13,6 +13,7 @@ The problem asks us to find the lexicographically smallest string formed by a pa
 
 Since this is a grid path problem, a natural first thought is Dynamic Programming. Let $dp[i][j]$ be the lexicographically minimal string from $(0, 0)$ to $(i, j)$.
 The transition would be:
+
 $$
 dp[i][j] = \min(dp[i-1][j], dp[i][j-1]) + \text{grid}[i][j]
 $$
